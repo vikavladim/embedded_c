@@ -1,4 +1,4 @@
-#include "../../include/client_list.h"
+#include "client_list.h"
 
 #include <stdio.h>
 #include <stdlib.h>

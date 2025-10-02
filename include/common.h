@@ -5,10 +5,11 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 
-#define HOST_IP "127.0.0.1"
-#define PORT 9090
 #define MAX_PAYLOAD_SIZE 1024
-#define MAX_BUFFER_SIZE 65536
+#define MAX_BUFFER_SIZE 2048
+
+extern char HOST_IP[16];
+extern in_port_t PORT;
 
 unsigned short checksum(void *b, int len);
 int verify_udp_checksum(struct iphdr *ip_header, struct udphdr *udp_header);

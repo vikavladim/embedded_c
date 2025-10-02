@@ -1,13 +1,13 @@
-#include "../include/common.h"
+#include "common.h"
 
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
-#include <net/if.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+char HOST_IP[16] = "127.0.0.1";
+in_port_t PORT = 9090;
 
 unsigned short checksum(void *b, int len) {
   unsigned short *buf = b;
@@ -27,8 +27,8 @@ unsigned short checksum(void *b, int len) {
 }
 
 int send_udp_raw(struct in_addr src_ip, in_port_t src_port,
-                 struct in_addr dst_ip, in_port_t dst_port, const char *message,
-                 int message_len) {
+                 struct in_addr dest_ip, in_port_t dest_port,
+                 const char *message, int message_len) {
   if (!message || message_len < 0) {
     fprintf(stderr, "Invalid payload parameters\n");
     return -1;
@@ -72,7 +72,7 @@ int send_udp_raw(struct in_addr src_ip, in_port_t src_port,
   memcpy(udp_payload, message, message_len);
 
   udp_header->source = htons(src_port);
-  udp_header->dest = htons(dst_port);
+  udp_header->dest = htons(dest_port);
   udp_header->len = htons(sizeof(struct udphdr) + message_len);
   udp_header->check = 0;
 
@@ -86,14 +86,14 @@ int send_udp_raw(struct in_addr src_ip, in_port_t src_port,
   ip_header->protocol = IPPROTO_UDP;
   ip_header->check = 0;
   ip_header->saddr = src_ip.s_addr;
-  ip_header->daddr = dst_ip.s_addr;
+  ip_header->daddr = dest_ip.s_addr;
 
   ip_header->check = checksum(ip_header, sizeof(struct iphdr));
 
   struct sockaddr_in dest_addr;
   memset(&dest_addr, 0, sizeof(dest_addr));
   dest_addr.sin_family = AF_INET;
-  dest_addr.sin_addr = dst_ip;
+  dest_addr.sin_addr = dest_ip;
 
   int send_result = sendto(send_sock, packet, packet_size, 0,
                            (struct sockaddr *)&dest_addr, sizeof(dest_addr));

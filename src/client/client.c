@@ -1,35 +1,38 @@
-#include "../include/client.h"
+#include "client.h"
 
 #include <errno.h>
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
-#include <net/if.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "../include/common.h"
+#include "common.h"
 
 int running = 1;
+in_port_t CLIENT_PORT = 0;
 
 void handle_signal(int sig) {
   (void)sig;
   running = 0;
-  printf("\nReceived signal, shutting down...\n");
 }
 
 int initialize_client(in_port_t *client_port) {
-  printf("Starting Raw Socket Echo Client...\n");
+  printf("Starting Raw Socket Echo Client connecting to %s:%d...\n", HOST_IP,
+         PORT);
 
-  srand(time(NULL));
-  *client_port = 1024 + rand() % (65535 - 1024);
-  printf("Client using port: %d\n", *client_port);
+  if (CLIENT_PORT == 0) {
+    srand(time(NULL));
+    *client_port = MIN_EPHEMERAL_PORT +
+                   rand() % (MAX_EPHEMERAL_PORT - MIN_EPHEMERAL_PORT + 1);
+    printf("Client using auto-selected source port: %d\n", *client_port);
+  } else {
+    *client_port = CLIENT_PORT;
+    printf("Client using specified source port: %d\n", *client_port);
+  }
 
   return 0;
 }
@@ -44,21 +47,9 @@ int setup_signal_handlers(void) {
 }
 
 int create_raw_socket(void) {
-  int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP));
+  int sock = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
   if (sock < 0) {
     perror("receive socket");
-    return -1;
-  }
-
-  struct sockaddr_ll sll;
-  memset(&sll, 0, sizeof(sll));
-  sll.sll_family = AF_PACKET;
-  sll.sll_ifindex = if_nametoindex("lo");
-  sll.sll_protocol = htons(ETH_P_IP);
-
-  if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) {
-    perror("receive bind");
-    close(sock);
     return -1;
   }
 
@@ -66,10 +57,10 @@ int create_raw_socket(void) {
 }
 
 int process_udp_packet(const char *buffer, in_port_t client_port) {
-  struct iphdr *ip_header = (struct iphdr *)(buffer + 14);
+  struct iphdr *ip_header = (struct iphdr *)buffer;
   if (ip_header->protocol == IPPROTO_UDP) {
     int ip_header_len = ip_header->ihl * 4;
-    struct udphdr *udp_header = (struct udphdr *)(buffer + 14 + ip_header_len);
+    struct udphdr *udp_header = (struct udphdr *)(buffer + ip_header_len);
 
     if (ntohs(udp_header->dest) == client_port) {
       char *payload = (char *)udp_header + sizeof(struct udphdr);
@@ -110,7 +101,7 @@ void *receive_thread(void *arg) {
 
   while (running) {
     int len = recv(sock, buffer, MAX_BUFFER_SIZE, 0);
-    if (len > 0 && len >= 14) {
+    if (len > 0) {
       if (process_udp_packet(buffer, client_port)) {
         running = 0;
         printf("Server requested connection close. Shutting down...\n");

@@ -6,7 +6,11 @@
 
 #include "common.h"
 
+#define MIN_EPHEMERAL_PORT 1024
+#define MAX_EPHEMERAL_PORT 65535
+
 extern int running;
+extern in_port_t CLIENT_PORT;
 
 void handle_signal(int sig);
 void *receive_thread(void *arg);
